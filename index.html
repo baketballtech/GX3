@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gemini Programmer Img</title>
+  <style>
+    :root {
+      --bg: #000000;
+      --surface: #000000;
+      --text: #e8eaed;
+      --text-dim: #9aa0a6;
+      --input-bg: #1f1f1f;
+      --accent: #8ab4f8;
+      --border: #303134;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px 16px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 800px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 500;
+      text-align: center;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+
+    .subtitle {
+      color: var(--text-dim);
+      text-align: center;
+      margin-bottom: 32px;
+      font-size: 1.05rem;
+    }
+
+    #chat-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 0;
+      margin-bottom: 16px;
+    }
+
+    #output {
+      background: #0d1117;
+      border-radius: 16px;
+      padding: 16px 20px;
+      margin: 16px 0;
+      white-space: pre-wrap;
+      font-family: 'Consolas', monospace;
+      font-size: 1rem;
+      line-height: 1.6;
+      display: none;
+      border: 1px solid var(--border);
+    }
+
+    .input-area {
+      position: relative;
+      background: var(--input-bg);
+      border-radius: 24px;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .input-row {
+      display: flex;
+      align-items: center;
+    }
+
+    textarea {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-size: 1.05rem;
+      resize: none;
+      min-height: 24px;
+      max-height: 160px;
+      outline: none;
+      padding: 8px 0;
+    }
+
+    textarea::placeholder { color: var(--text-dim); }
+
+    .attach-icon {
+      cursor: pointer;
+      font-size: 1.4rem;
+      color: var(--text-dim);
+      margin-right: 12px;
+      transition: color 0.2s;
+    }
+
+    .attach-icon:hover { color: var(--accent); }
+
+    #send-btn {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      margin-left: 12px;
+    }
+
+    #send-btn:hover { opacity: 0.9; }
+
+    .preview-inline {
+      max-width: 100%;
+      max-height: 80px;          /* Pequena dentro da caixa */
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      display: none;
+      object-fit: contain;
+      align-self: flex-start;
+      margin-left: 48px;         /* Alinha abaixo do texto/ícone */
+    }
+
+    #loading {
+      display: none;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 1.1rem;
+      margin: 20px 0;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%,100% { opacity: 0.6; }
+      50%     { opacity: 1; }
+    }
+
+    #image-input { display: none; }
+
+    footer {
+      margin-top: 32px;
+      color: var(--text-dim);
+      font-size: 0.85rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Gemini Programmer Img</h1>
+  <p class="subtitle">
+    Envie uma imagem de exercício ou digite sua dúvida em Python.<br>
+    Cole com Ctrl+V ou use o ícone para anexar.
+  </p>
+
+  <div id="chat-area">
+    <pre id="output"></pre>
+  </div>
+
+  <div class="input-area">
+    <div class="input-row">
+      <label for="image-input" class="attach-icon" title="Anexar imagem">📎</label>
+      <input type="file" id="image-input" accept="image/*">
+
+      <textarea id="question" placeholder="Digite sua pergunta ou cole uma imagem (Ctrl+V)..." rows="1"></textarea>
+
+      <button id="solve" title="Enviar">➤</button>
+    </div>
+
+    <img id="preview-inline" class="preview-inline" alt="Imagem colada/anexada">
+  </div>
+
+  <div id="loading">Gemini pensando... 🌀</div>
+
+  <footer>Powered by Google Gemini</footer>
+</div>
+
+<script>
+  // CONFIGURAÇÃO
+  const GEMINI_API_KEY = 'AIzaSyAmDqkLcMyz7MtmieK2mwBdgoEoPyMlZzc';
+  const MODEL = 'gemini-2.5-flash';  // ou 'gemini-2.5-flash-latest'
+  const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+
+  const questionEl     = document.getElementById('question');
+  const imageInput     = document.getElementById('image-input');
+  const previewInline  = document.getElementById('preview-inline');
+  const loading        = document.getElementById('loading');
+  const output         = document.getElementById('output');
+  const solveBtn       = document.getElementById('solve');
+
+  let currentImageDataURL = null;
+
+  // Auto-resize textarea
+  questionEl.addEventListener('input', () => {
+    questionEl.style.height = 'auto';
+    questionEl.style.height = questionEl.scrollHeight + 'px';
+  });
+
+  // Função para mostrar imagem pequena na caixa
+  function showInlinePreview(dataUrl) {
+    currentImageDataURL = dataUrl;
+    previewInline.src = dataUrl;
+    previewInline.style.display = 'block';
+  }
+
+  // Upload via ícone
+  imageInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => showInlinePreview(ev.target.result);
+    reader.readAsDataURL(file);
+  });
+
+  // Colar com Ctrl + V
+  document.addEventListener('paste', e => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const blob = item.getAsFile();
+        const reader = new FileReader();
+        reader.onload = ev => showInlinePreview(ev.target.result);
+        reader.readAsDataURL(blob);
+        return;
+      }
+    }
+  });
+
+  // Enviar
+  solveBtn.addEventListener('click', sendRequest);
+  questionEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendRequest();
+    }
+  });
+
+  async function sendRequest() {
+    const text = questionEl.value.trim();
+    if (!text && !currentImageDataURL) {
+      alert('Escreva uma pergunta ou cole/anexe uma imagem.');
+      return;
+    }
+
+    loading.style.display = 'block';
+    output.style.display = 'none';
+    output.textContent = '';
+
+    const contents = [];
+
+    if (text) {
+      contents.push({ parts: [{ text }] });
+    }
+
+    if (currentImageDataURL) {
+      const [mime, base64] = currentImageDataURL.split(';base64,');
+      contents.push({
+        parts: [{
+          inline_data: {
+            mime_type: mime.split(':')[1],
+            data: base64.split(',')[1] || base64
+          }
+        }]
+      });
+    }
+
+    if (contents.length === 1 && !text) {
+      contents[0].parts.unshift({
+        text: "Analise esta imagem de exercício de programação em Python e forneça o código resolvido com o mínimo de explicação possível (máx 2-3 linhas de comentário)."
+      });
+    }
+
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents })
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Erro ${res.status}: ${err}`);
+      }
+
+      const data = await res.json();
+      const answer = data.candidates?.[0]?.content?.parts?.[0]?.text || '(sem resposta)';
+
+      output.textContent = answer;
+      output.style.display = 'block';
+    } catch (err) {
+      output.textContent = 'Erro: ' + err.message;
+      output.style.display = 'block';
+    } finally {
+      loading.style.display = 'none';
+      questionEl.value = '';
+      questionEl.style.height = 'auto';
+      // Remove a imagem da caixa após envio
+      previewInline.style.display = 'none';
+      currentImageDataURL = null;
+    }
+  }
+</script>
+</body>
+</html>
